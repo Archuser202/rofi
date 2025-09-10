@@ -1,0 +1,45 @@
+name: Rofi Windows Build
+
+on:
+  workflow_dispatch: # manual trigger
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >-
+            git
+            base-devel
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-gtk3
+            mingw-w64-x86_64-pango
+            mingw-w64-x86_64-cairo
+            mingw-w64-x86_64-glib2
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-pkg-config
+          msystem: MINGW64
+
+      - name: Build rofi
+        shell: msys2 {0}
+        run: |
+          mkdir build && cd build
+          cmake .. -G"MinGW Makefiles" -DCMAKE_INSTALL_PREFIX=/mingw64
+          mingw32-make
+
+      - name: Archive rofi.exe
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rofi-windows-build
+          path: build/rofi.exe
