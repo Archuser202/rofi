@@ -1,10 +1,9 @@
 name: Rofi Windows Build
 
 on:
-  workflow_dispatch: # manual trigger
+  workflow_dispatch:
   push:
     branches: [ main ]
-  pull_request:
 
 jobs:
   build-windows:
@@ -26,20 +25,22 @@ jobs:
             mingw-w64-x86_64-pango
             mingw-w64-x86_64-cairo
             mingw-w64-x86_64-glib2
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-meson
+            mingw-w64-x86_64-ninja
           msystem: MINGW64
 
-      - name: Build rofi
+      - name: Build rofi with Meson
         shell: msys2 {0}
         run: |
-          mkdir build && cd build
-          cmake .. -G"MinGW Makefiles" -DCMAKE_INSTALL_PREFIX=/mingw64
-          mingw32-make
+          meson setup build --prefix=/mingw64
+          ninja -C build
+          ninja -C build install
 
-      - name: Archive rofi.exe
-        if: success()
+      - name: Upload build artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rofi-windows-build
-          path: build/rofi.exe
+          name: rofi-windows-artifacts
+          path: |
+            build/**
+            /mingw64/bin/rofi.exe
