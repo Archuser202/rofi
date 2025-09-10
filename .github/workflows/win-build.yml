@@ -1,48 +1,42 @@
-name: Rofi Windows Build (CMake)
+name: Build Rofi (Windows)
 
-on:
-  workflow_dispatch:
-  push:
-    branches: [ main ]
+on: [push, pull_request]
 
 jobs:
-  build-windows:
+  build:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - name: Install MSYS2
+      - name: Install MSYS2 and dependencies
         uses: msys2/setup-msys2@v2
         with:
           update: true
           install: >-
-            git
             base-devel
+            git
             mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-gtk3
-            mingw-w64-x86_64-pango
-            mingw-w64-x86_64-cairo
-            mingw-w64-x86_64-glib2
-            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-meson
+            mingw-w64-x86_64-ninja
             mingw-w64-x86_64-pkg-config
-          msystem: MINGW64
+            mingw-w64-x86_64-gtk3
 
-      - name: Build rofi with CMake
+      - name: Configure (Meson)
         shell: msys2 {0}
-        run: |
-          mkdir -p build
-          cd build
-          cmake $GITHUB_WORKSPACE -G"MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/mingw64
-          mingw32-make VERBOSE=1
-          mingw32-make install
+        run: meson setup build --prefix=$PWD/install
 
-      - name: Upload build artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Build (Ninja)
+        shell: msys2 {0}
+        run: ninja -C build
+
+      - name: Install
+        shell: msys2 {0}
+        run: ninja -C build install
+
+      - name: Upload rofi.exe
+        uses: actions/upload-artifact@v3
         with:
-          name: rofi-windows-artifacts
-          path: |
-            build/**
-            /mingw64/bin/rofi.exe
+          name: rofi-windows
+          path: install/bin/
