@@ -26,6 +26,7 @@
  */
 
 /** The log domain of this widget. */
+#include "cairo.h"
 #define G_LOG_DOMAIN "Widgets.Icon"
 #include "config.h"
 
@@ -98,13 +99,13 @@ static void icon_draw(widget *wid, cairo_t *draw) {
   }
   int iconh = cairo_image_surface_get_height(b->icon);
   int iconw = cairo_image_surface_get_width(b->icon);
-  int icons = MAX(iconh, iconw);
-  double scale = (double)b->size / icons;
-
   int lpad = widget_padding_get_left(WIDGET(b));
   int rpad = widget_padding_get_right(WIDGET(b));
   int tpad = widget_padding_get_top(WIDGET(b));
   int bpad = widget_padding_get_bottom(WIDGET(b));
+  double scalex = (double)(b->widget.w - lpad - rpad) / iconw;
+  double scaley = (double)(b->widget.h - tpad - bpad) / iconh;
+  double scale = MIN(scalex, scaley);
 
   cairo_save(draw);
 
@@ -112,6 +113,14 @@ static void icon_draw(widget *wid, cairo_t *draw) {
       draw, lpad + (b->widget.w - iconw * scale - lpad - rpad) * b->xalign,
       tpad + (b->widget.h - iconh * scale - tpad - bpad) * b->yalign);
   cairo_scale(draw, scale, scale);
+  if (rofi_theme_has_property(WIDGET(wid), P_COLOR, "tint")) {
+    cairo_pattern_t *pat = cairo_pattern_create_for_surface(b->icon);
+    cairo_set_source_rgb(draw, 0, 0, 0);
+    rofi_theme_get_color(WIDGET(wid), "tint", draw);
+    cairo_mask(draw, pat);
+    cairo_set_operator(draw, CAIRO_OPERATOR_HSL_LUMINOSITY);
+    cairo_pattern_destroy(pat);
+  }
   cairo_set_source_surface(draw, b->icon, 0, 0);
   cairo_paint(draw);
   cairo_restore(draw);

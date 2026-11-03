@@ -88,7 +88,7 @@ struct _rofi_view_cache_state CacheState = {
     .entry_history_index = 0,
 };
 
-static char *get_matching_state(RofiViewState* state) {
+static char *get_matching_state(RofiViewState *state) {
   if (state->case_sensitive) {
     if (config.sort) {
       return "±";
@@ -112,6 +112,28 @@ static int lev_sort(const void *p1, const void *p2, void *arg) {
   int *distances = arg;
 
   return distances[*a] - distances[*b];
+}
+
+/**
+ * fzf-v2 sorting: by key, then by input position, which is what fzf compares
+ * last (compareRanks in src/result_others.go). The sort cannot be relied on
+ * for that, being stable only from glib 2.82. Kept out of lev_sort() so the
+ * other methods resolve their ties as before. The values sorted are indices
+ * into the unfiltered list, hence already the input positions.
+ */
+static int fzf_v2_sort(const void *p1, const void *p2, void *arg) {
+  const unsigned int *a = p1;
+  const unsigned int *b = p2;
+  int *distances = arg;
+  int d = distances[*a] - distances[*b];
+
+  if (d != 0) {
+    return d;
+  }
+  if (*a != *b) {
+    return *a < *b ? -1 : 1;
+  }
+  return 0;
 }
 
 static void screenshot_taken_user_callback(const char *path) {
@@ -298,6 +320,23 @@ void rofi_view_restart(RofiViewState *state) {
 
 RofiViewState *rofi_view_get_active(void) { return current_active_menu; }
 
+textbox *rofi_view_get_active_text(void) {
+  RofiViewState *state = rofi_view_get_active();
+  if (state) {
+    return state->text;
+  }
+  return NULL;
+}
+
+void rofi_view_cancel(RofiViewState *state) {
+  if (state == NULL) {
+    return;
+  }
+
+  state->retv = MENU_CANCEL;
+  state->quit = TRUE;
+}
+
 void rofi_view_remove_active(RofiViewState *state) {
   if (state == current_active_menu) {
     rofi_view_set_active(NULL);
@@ -374,6 +413,14 @@ MenuReturn rofi_view_get_return_value(const RofiViewState *state) {
 
 unsigned int rofi_view_get_selected_line(const RofiViewState *state) {
   return state->selected_line;
+}
+
+unsigned int rofi_view_get_element_pitch(const RofiViewState *state,
+                                         RofiOrientation orientation) {
+  if (state == NULL) {
+    return 0;
+  }
+  return listview_get_element_pitch(state->list_view, orientation);
 }
 
 unsigned int rofi_view_get_next_position(const RofiViewState *state) {
@@ -453,7 +500,6 @@ static void filter_elements(thread_state *ts,
     if (match) {
       t->state->line_map[t->start + t->count] = i;
       if (config.sort) {
-        // This is inefficient, need to fix it.
         char *str = mode_get_completion(t->state->sw, i);
         glong slen = g_utf8_strlen(str, -1);
         switch (config.sorting_method_enum) {
@@ -461,6 +507,14 @@ static void filter_elements(thread_state *ts,
           t->state->distance[i] = rofi_scorer_fuzzy_evaluate(
               t->pattern, t->plen, str, slen, t->state->case_sensitive);
           break;
+        case SORT_FZF_V2: {
+          /* Scores tie constantly, so sort on fzf's key (inverted score plus
+           * a length tiebreak) rather than on the score alone. */
+          int score = rofi_scorer_fzf_v2_evaluate(
+              t->pattern, t->plen, str, slen, t->state->case_sensitive);
+          t->state->distance[i] = rofi_scorer_fzf_v2_sort_key(score, str);
+          break;
+        }
         case SORT_NORMAL:
         default:
           t->state->distance[i] = levenshtein(t->pattern, t->plen, str, slen,
@@ -839,8 +893,13 @@ static gboolean rofi_view_refilter_real(RofiViewState *state) {
       j += states[i].count;
     }
     if (config.sort) {
-      g_qsort_with_data(state->line_map, j, sizeof(int), lev_sort,
-                        state->distance);
+      if (config.sorting_method_enum == SORT_FZF_V2) {
+        g_qsort_with_data(state->line_map, j, sizeof(int), fzf_v2_sort,
+                          state->distance);
+      } else {
+        g_qsort_with_data(state->line_map, j, sizeof(int), lev_sort,
+                          state->distance);
+      }
     }
 
     // Cleanup + bookkeeping.
@@ -968,13 +1027,13 @@ static void rofi_view_input_changed(void) {
 }
 
 #ifdef ENABLE_WAYLAND
-static void rofi_view_clipboard_callback(char *clipboard_data, G_GNUC_UNUSED void *user_data) {
+static void rofi_view_clipboard_callback(const char *clipboard_data,
+                                         G_GNUC_UNUSED void *user_data) {
   RofiViewState *state = rofi_view_get_active();
   if (clipboard_data != NULL) {
     if (state != NULL) {
       rofi_view_handle_text(state, clipboard_data);
     }
-    g_free(clipboard_data);
   }
 }
 #endif
@@ -994,7 +1053,8 @@ static void rofi_view_trigger_global_action(KeyBindingAction action) {
 #endif
 #ifdef ENABLE_WAYLAND
     if (config.backend == DISPLAY_WAYLAND) {
-      display_get_clipboard_data(CLIPBOARD_PRIMARY, rofi_view_clipboard_callback, NULL);
+      display_get_clipboard_data(CLIPBOARD_PRIMARY,
+                                 rofi_view_clipboard_callback, NULL);
     }
 #endif
     break;
@@ -1009,7 +1069,8 @@ static void rofi_view_trigger_global_action(KeyBindingAction action) {
 #endif
 #ifdef ENABLE_WAYLAND
     if (config.backend == DISPLAY_WAYLAND) {
-      display_get_clipboard_data(CLIPBOARD_DEFAULT, rofi_view_clipboard_callback, NULL);
+      display_get_clipboard_data(CLIPBOARD_DEFAULT,
+                                 rofi_view_clipboard_callback, NULL);
     }
 #endif
     break;
@@ -1198,6 +1259,7 @@ static void rofi_view_trigger_global_action(KeyBindingAction action) {
   case MOVE_END:
   case REMOVE_TO_EOL:
   case REMOVE_TO_SOL:
+  case TRANSPOSE_CHARS:
   case REMOVE_WORD_BACK:
   case REMOVE_WORD_FORWARD:
   case REMOVE_CHAR_FORWARD:
@@ -1398,7 +1460,10 @@ void rofi_view_trigger_action(RofiViewState *state, BindingsScope scope,
   }
 }
 
-void rofi_view_handle_text(RofiViewState *state, char *text) {
+void rofi_view_handle_text(RofiViewState *state, const char *text) {
+  if (state == NULL || state->text == NULL) {
+    return;
+  }
   if (textbox_append_text(state->text, text, strlen(text))) {
     state->refilter = TRUE;
     rofi_view_input_changed();
@@ -1994,10 +2059,9 @@ void rofi_view_workers_initialize(void) {
   if (config.threads == 0) {
     config.threads = 1;
     long procs = sysconf(_SC_NPROCESSORS_CONF);
-    if (procs > 0) {
-      config.threads = MIN(procs, 128l);
-    }
+    config.threads = procs;
   }
+  config.threads = MIN(config.threads, 128l);
   // Create thread pool
   GError *error = NULL;
   tpool = g_thread_pool_new_full(rofi_view_call_thread, NULL,
@@ -2177,3 +2241,7 @@ void rofi_view_get_size(RofiViewState *state, gint *width, gint *height) {
 void rofi_view_ping_mouse(RofiViewState *state) { proxy->ping_mouse(state); }
 
 void rofi_view_pool_refresh(void) { proxy->pool_refresh(); }
+
+void rofi_view_get_menu_rect(int *x, int *y, int *w, int *h) {
+  proxy->get_menu_rect(x, y, w, h);
+}

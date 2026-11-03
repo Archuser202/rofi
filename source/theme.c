@@ -1303,9 +1303,7 @@ rofi_theme_get_highlight_inside(Property *p, widget *wid, const char *property,
     }
     return th;
   }
-  g_debug("Theme entry: #%s %s property %s unset.", wid->name,
-          wid->state ? wid->state : "", property);
-  return th;
+  // UNREACHABLE
 }
 RofiHighlightColorStyle rofi_theme_get_highlight(widget *wid,
                                                  const char *property,
@@ -1652,9 +1650,10 @@ static gboolean rofi_theme_has_property_inside(Property *p,
   }
   return FALSE;
 }
-gboolean rofi_theme_has_property(const widget *wid_in, const char *property) {
+gboolean rofi_theme_has_property(const widget *wid_in, const PropertyType type,
+                                 const char *property) {
   ThemeWidget *wid = rofi_theme_find_widget(wid_in->name, wid_in->state, FALSE);
-  Property *p = rofi_theme_find_property(wid, P_STRING, property, FALSE);
+  Property *p = rofi_theme_find_property(wid, type, property, FALSE);
   return rofi_theme_has_property_inside(p, wid_in, property);
 }
 

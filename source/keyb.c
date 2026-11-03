@@ -25,6 +25,7 @@
  *
  */
 #include "config.h"
+#include "keyb.h"
 #include "rofi.h"
 #include "xrmoptions.h"
 #include <glib.h>
@@ -107,6 +108,10 @@ ActionBindingEntry rofi_bindings[] = {
      .name = "kb-remove-to-sol",
      .binding = "Control+u",
      .comment = "Delete till the start of line"},
+    {.id = TRANSPOSE_CHARS,
+     .name = "kb-transpose-chars",
+     .binding = "Control+t",
+     .comment = "Transpose (swap) two chars before cursor"},
     {.id = ACCEPT_ENTRY,
      .name = "kb-accept-entry",
      .binding = "Control+j,Control+m,Return,KP_Enter",
@@ -203,10 +208,10 @@ ActionBindingEntry rofi_bindings[] = {
     {.id = TOGGLE_SORT,
      .name = "kb-toggle-sort",
      .binding = "Alt+grave",
-     .comment = "Toggle sort"},
+    .comment = "Toggle sort"},
     {.id = CANCEL,
      .name = "kb-cancel",
-     .binding = "Escape,Control+g,Control+bracketleft",
+     .binding = "Escape,Control+g,Control+bracketleft,MouseSecondary",
      .comment = "Quit rofi"},
     {.id = CUSTOM_1,
      .name = "kb-custom-1",
@@ -457,8 +462,7 @@ gboolean parse_keys_abe(NkBindings *bindings) {
       if (!nk_bindings_add_binding(bindings, b->scope, entry,
                                    binding_check_action, binding_trigger_action,
                                    GUINT_TO_POINTER(b->id), NULL,
-                                   NK_BINDINGS_ADD_FLAG_NONE,
-                                   &error)) {
+                                   NK_BINDINGS_ADD_FLAG_NONE, &error)) {
         if (error->code == NK_BINDINGS_ERROR_ALREADY_REGISTERED &&
             error->domain == NK_BINDINGS_ERROR) {
           char *str = g_markup_printf_escaped(
@@ -496,8 +500,7 @@ gboolean parse_keys_abe(NkBindings *bindings) {
       nk_bindings_add_binding(bindings, i, mouse_default_bindings[j],
                               binding_check_action, binding_trigger_action,
                               GSIZE_TO_POINTER(j), NULL,
-                              NK_BINDINGS_ADD_FLAG_NONE,
-                              NULL);
+                              NK_BINDINGS_ADD_FLAG_NONE, NULL);
     }
   }
 

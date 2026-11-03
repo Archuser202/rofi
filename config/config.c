@@ -88,6 +88,11 @@ Settings config = {
      *
      */
     .location = WL_CENTER,
+    /**
+     * On Wayland, specifies the layer where rofi is rendered. Available layers are
+     * `background`, `bottom`, `top`, `overlay`. The default layer is `overlay`.
+     */
+    .wayland_layer = "overlay",
     /** Y offset */
     .y_offset = 0,
     /** X offset */
@@ -149,6 +154,7 @@ Settings config = {
     .scroll_method = 0,
     .window_format = "{w}    {c}   {t}",
     .click_to_exit = TRUE,
+    .touch_scroll_step = 0,
     .global_kb = FALSE,
     .theme = NULL,
     .plugin_path = PLUGIN_PATH,
@@ -182,4 +188,5 @@ Settings config = {
     .completer_mode = "filebrowser",
     /** Whether to enable imdkit, see #2123 */
     .enable_imdkit = TRUE,
+    .fallback_icon_themes = "Adwaita,gnome",
 };

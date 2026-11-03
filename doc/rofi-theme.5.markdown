@@ -616,7 +616,7 @@ It supports the following operations:
 - `+`      : Add
 - `-`      : Subtract
 - `/`      : Divide
-- `-`      : Multiply
+- `*`      : Multiply
 - `modulo` : Modulo
 - `min`    : Minimum of lvalue or rvalue;
 - `max`    : Maximum of lvalue or rvalue;
@@ -1118,7 +1118,7 @@ The following properties are currently supported:
 
 - **reverse**:         boolean Reverse the ordering (top down to bottom up).
 
-- **flow**:           orientation The order the elements are layed out.
+- **flow**:           orientation The order the elements are laid out.
     Vertical is the original 'column' view.
 
 - **fixed-columns**:    boolean Do not reduce the number of columns shown when
@@ -1306,6 +1306,9 @@ a list).
 
 If the `squared` property is set to **false** the widget height and width are
 not forced to be equal.
+
+If the `tint`  property is set with a white, the icons is greyscale. If
+another color is set, the icon is tinted to that color.
 
 Example:
 

@@ -180,6 +180,11 @@ Default:  Autodetect
 
 The X server to contact. Default is `$DISPLAY`.
 
+`-wayland-layer` *layer*
+
+On Wayland, specifies the layer where rofi is rendered. Available layers are
+`background`, `bottom`, `top`, `overlay`. The default layer is `overlay`.
+
 `-dmenu`
 
 Run **rofi** in dmenu mode. This allows for interactive scripts.
@@ -258,6 +263,8 @@ Start in case-smart mode behave like vim's `smartcase`, which determines
 case-sensitivity by input.  When enabled, this will suppress `-case-sensitive`
 config.
 
+Default: disabled.
+
 `-cycle`
 
 Cycle through the result list. Default is 'true'.
@@ -298,12 +305,18 @@ Specify the directory where **rofi** should look for plugins.
 
 `-show-icons`
 
-Show application icons in `drun` and `window` modes.
+Load and show icons in the default theme.
 
 `-icon-theme`
 
 Specify icon theme to be used. If not specified default theme from DE is used,
 *Adwaita* and *gnome* themes act as fallback themes.
+
+
+`-fallback-icon-themes`
+
+Specify one or more fallback icon themes to be used.
+*Adwaita* and *gnome* themes are set as default fallback themes.
 
 `-markup`
 
@@ -372,9 +385,12 @@ The matching up/down keybinding allows cycling through at runtime.
 
 Note: glob matching might be slow for larger lists
 
-`-tokenize`
+`-[no-]tokenize`
 
-Tokenize the input.
+Tokenize the input into words, each word is matched separately with each entry.
+If enabled the search `test this` will match the entry `this test`.
+
+Default: enabled
 
 `-drun-categories` *category1*,*category2*
 
@@ -459,10 +475,19 @@ This setting can be changed at runtime (see `-kb-toggle-sort`).
 
 `-sorting-method` 'method' to specify the sort method.
 
-There are 2 methods:
+There are 3 methods:
 
 - **levenshtein** (Default)
-- **fzf**
+- **fzf** a fuzzy scorer loosely inspired by fzf.
+- **fzf-v2** a port of fzf's default fuzzy scoring algorithm (FuzzyMatchV2)
+  that aims to match fzf's ranking. Prefers contiguous matches and
+  word-boundary/camelCase starts using fzf's own weights.
+  Whitespace-separated terms are scored independently and summed, like fzf.
+  Entries whose scores tie are ordered by length (ignoring leading and
+  trailing whitespace) and then by their order in the input, which is fzf's
+  default tie-breaking.
+  When `-normalize-match` is enabled, scoring is done on the normalized
+  (accent-stripped) text, mirroring fzf's rune normalization.
 
 ### Layout and Theming
 
@@ -501,7 +526,7 @@ Open in sidebar-mode. In this mode, a list of all enabled modes is shown at the
 bottom (See `-modes` option). To show sidebar, use:
 
 ```bash
-    rofi -show run -sidebar-mode 
+    rofi -show run -sidebar-mode
 ```
 
 `-hover-select`
@@ -896,6 +921,16 @@ Click the mouse outside the **rofi** window to exit.
 
 Default: *enabled*
 
+`-touch-scroll-step` *number*
+
+(wayland) The distance in pixels that a touch swipe travels for one scroll
+step. With `0`, the step is the size of one list element along the swipe, so
+the selection moves one element for each element the finger travels, in a list
+and in a grid. See the **rofi-keys(5)** manpage for how touch uses the mouse
+bindings.
+
+Default: *0*
+
 `-global-kb`
 `-no-global-kb`
 
@@ -921,6 +956,9 @@ replaced at runtime:
 - `{ssh-client}`: the configured ssh client (see -ssh-client)
 - `{cmd}`: the command to execute
 - `{window}`: the window ID of the selected window (in `window-command`)
+  - Under Wayland, this is a compositor-specific ["stable
+    identifier"](https://wayland.app/protocols/ext-foreign-toplevel-list-v1#ext_foreign_toplevel_handle_v1:event:identifier)
+    for the window. Check your compositor's documentation for usage.
 
 It processes the string as follows: `{key}`
 is replaced by its value, if `{key}` is not set it is removed. If the `{key}`
@@ -972,21 +1010,25 @@ configuration {
 
 ### window
 
-Show a list of all the windows and allow switching between them. Pressing the
-`delete-entry` binding (`shift-delete`) will close the window. Pressing the
-`accept-custom` binding (`control-enter` or `shift-enter`) will run a command
-on the window. (See option `window-command` );
+Show a list of all the windows and allow switching between them.
+Pressing the `delete-entry` binding (`shift-delete`) will close the window.
+Pressing the `accept-alt` binding (`shift-enter`) will run a command on the
+window. (See option `window-command` );
 
-If there is no match, it will try to launch the input.
+If there is no match, or if `accept-custom` (`control-enter`) is pressed, it
+will try to launch the input.
 
 ### windowcd
 
+Same as the **window** mode, but lists only windows on the current desktop.
 Shows a list of the windows on the current desktop and allows switching between
-them. Pressing the `delete-entry` binding (`shift-delete`) will kill the
-window. Pressing the `accept-custom` binding (`control-enter` or `shift-enter`)
-will run a command on the window. (See option `window-command` );
+them.
+Pressing the `delete-entry` binding (`shift-delete`) will kill the window.
+Pressing the `accept-alt` binding (`shift-enter`) will run a command on the
+window. (See option `window-command` );
 
-If there is no match, it will try to launch the input.
+If there is no match, or if `accept-custom` (`control-enter`) is pressed, it
+will try to launch the input.
 
 ### run
 
@@ -1042,8 +1084,8 @@ configuration {
       parse-user:   true;
       /** Parse system desktop files. */
       parse-system: false;
-      /** Disable DBusActivatable */
-      DBusActivatable: false;
+      /** Launch applications using GIO's app launch */
+      gio-launch: false;
    }
 }
 ```
@@ -1165,7 +1207,6 @@ KeyPress event, because the keyboard/pointer is still grabbed. For these
 situations, the `--release` flag can be used, as it will execute the command
 after the keys have been released.
 
-
 ## Hyprland
 
 Hyprland's animations make the launching of **Rofi** feel slower then needed.
@@ -1174,6 +1215,18 @@ To avoid this, add the following rule to your hyprland.conf file:
 ```
 layerrule = noanim,^(rofi)$
 ```
+
+For hyprland >= 0.53.0:
+
+```
+layerrule {
+    name = fix-rofi
+    match:namespace = rofi
+    no_anim = true
+ }
+
+```
+
 This disables the animations on the **Rofi** window.
 
 ## LICENSE

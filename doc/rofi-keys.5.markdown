@@ -159,6 +159,12 @@ Delete till the start of line
 
 Default:  Control+u
 
+`kb-transpose-chars`
+
+Transpose (swap) the two characters before the cursor
+
+Default:  Control+t
+
 `kb-accept-entry`
 
 Accept entry
@@ -570,6 +576,18 @@ The Identifier is constructed as follow:
 * `Button` is the button name.
 
 So `MouseDPrimary` is Primary (`Left`) mouse button double click.
+
+## Touch
+
+On Wayland, **rofi** uses the first finger on a touchscreen as the mouse until
+that finger lifts. Touch has no binding names of its own, so the mouse bindings
+above apply:
+
+* A tap is `MousePrimary` where the finger touched, and two quick taps are
+  `MouseDPrimary`.
+* A swipe is `ScrollUp`, `ScrollDown`, `ScrollLeft` or `ScrollRight`. It keeps
+  the axis it starts on until the finger lifts. The selection moves opposite to
+  the finger, so the list follows the finger.
 
 ## SEE ALSO
 

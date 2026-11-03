@@ -29,6 +29,7 @@
 #define ROFI_VIEW_H
 
 #include "mode.h"
+#include "widgets/textbox.h"
 #include "widgets/widget.h"
 #include <pango/pango.h>
 #ifdef ENABLE_XCB
@@ -107,7 +108,7 @@ unsigned int rofi_view_get_next_position(const RofiViewState *state);
  *
  * Update the state if needed.
  */
-void rofi_view_handle_text(RofiViewState *state, char *text);
+void rofi_view_handle_text(RofiViewState *state, const char *text);
 /**
  * @param state the Menu handle
  * @param x The X coordinates of the motion
@@ -161,6 +162,17 @@ void rofi_view_set_selected_line(RofiViewState *state,
  * @returns the selected line or UINT32_MAX if none selected.
  */
 unsigned int rofi_view_get_selected_line(const RofiViewState *state);
+
+/**
+ * @param state The Menu Handle
+ * @param orientation The axis to measure along
+ *
+ * The distance from one list element to the next along the axis.
+ *
+ * @returns the distance in pixels, or 0 if the menu shows no list elements.
+ */
+unsigned int rofi_view_get_element_pitch(const RofiViewState *state,
+                                         RofiOrientation orientation);
 /**
  * @param state The Menu Handle
  *
@@ -210,6 +222,13 @@ void rofi_view_free(RofiViewState *state);
  * @returns the active view handle or NULL
  */
 RofiViewState *rofi_view_get_active(void);
+
+/**
+ * Get the current active textbox with the user input.
+ *
+ * @returns the active textbox or NULL
+ */
+textbox *rofi_view_get_active_text(void);
 
 /**
  * @param state the new active view handle.
@@ -294,7 +313,7 @@ void rofi_view_set_overlay(RofiViewState *state, const char *text);
  * Overlays text over the current view. Passing NULL for text hides the overlay.
  * This message is automatically removed after X seconds.
  */
-void rofi_view_set_overlay_timeout (RofiViewState *state, const char *text);
+void rofi_view_set_overlay_timeout(RofiViewState *state, const char *text);
 
 /**
  * @param state The handle to the view.
@@ -364,7 +383,10 @@ void rofi_view_ping_mouse(RofiViewState *state);
 void rofi_view_set_window_title(const char *title);
 void rofi_view_pool_refresh(void);
 
+void rofi_view_get_menu_rect(int *x, int *y, int *w, int *h);
+
 void rofi_view_set_cursor(RofiCursorType type);
+
 
 /**
  * Input history
@@ -399,6 +421,9 @@ void rofi_view_ellipsize_listview(RofiViewState *state,
  * main_window
  */
 gboolean rofi_set_im_window_pos(int new_x, int new_y);
+
+// Cancel the current view
+void rofi_view_cancel(RofiViewState *state);
 
 /**
  * @param wid to test.

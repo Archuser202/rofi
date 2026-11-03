@@ -260,7 +260,6 @@ static void xcb_rofi_view_update(RofiViewState *state, gboolean qr) {
   }
 }
 
-
 /**
  * Calculates the window position
  */
@@ -439,6 +438,10 @@ static void xcb_rofi_view_ping_mouse(RofiViewState *state) {
 static gboolean xcb_rofi_view_reload_idle(G_GNUC_UNUSED gpointer data) {
   RofiViewState *state = rofi_view_get_active();
 
+  /* Clear before redrawing: a reload signalled during the pass would
+   * otherwise coalesce into it and be lost. */
+  XcbState.idle_timeout = 0;
+
   if (state) {
     // For UI update on this.
     if (state->tb_total_rows) {
@@ -450,7 +453,6 @@ static gboolean xcb_rofi_view_reload_idle(G_GNUC_UNUSED gpointer data) {
     state->refilter = TRUE;
     xcb_rofi_view_queue_redraw();
   }
-  XcbState.idle_timeout = 0;
   return G_SOURCE_REMOVE;
 }
 
@@ -640,7 +642,9 @@ static void xcb___create_window(MenuFlags menu_flags) {
   error = xcb_request_check(xcb->connection, cc);
   if (error) {
     g_error("xcb_create_window() failed error=0x%x\n", error->error_code);
-    exit(EXIT_FAILURE);
+    // g_error will cause the program to segfault.
+    // This is an unexpected error.
+    // exit(EXIT_FAILURE);
   }
 
   TICK_N("xcb create window");

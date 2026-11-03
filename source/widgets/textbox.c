@@ -37,6 +37,7 @@
 #include <ctype.h>
 #include <glib.h>
 #include <math.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "theme.h"
@@ -347,12 +348,20 @@ static void __textbox_update_pango_text(textbox *tb) {
   if ((tb->flags & TB_PASSWORD) == TB_PASSWORD) {
     size_t text_len = g_utf8_strlen(tb->text, -1);
     size_t mask_len = strlen(tb->password_mask_char);
-    char string[text_len * mask_len + 1];
-    for (size_t offset = 0; offset < text_len * mask_len; offset += mask_len) {
-      memcpy(string + offset, tb->password_mask_char, mask_len);
+    if (text_len > ((SIZE_MAX - 1) / mask_len)) {
+      text_len = ((SIZE_MAX - 1) / mask_len);
     }
-    string[text_len * mask_len] = '\0';
-    pango_layout_set_text(tb->layout, string, -1);
+
+    char *string = g_malloc(text_len * mask_len + 1);
+    if (string) {
+      for (size_t offset = 0; offset < text_len * mask_len;
+           offset += mask_len) {
+        memcpy(string + offset, tb->password_mask_char, mask_len);
+      }
+      string[text_len * mask_len] = '\0';
+      pango_layout_set_text(tb->layout, string, -1);
+      g_free(string);
+    }
   } else if (tb->flags & TB_MARKUP || tb->tbft & MARKUP) {
     pango_layout_set_markup(tb->layout, tb->text, -1);
   } else {
@@ -551,8 +560,11 @@ static void textbox_draw(widget *wid, cairo_t *draw) {
   if (tb->flags & TB_EDITABLE) {
     // We want to place the cursor based on the text shown.
     const char *text = pango_layout_get_text(tb->layout);
-    // hide the cursor, if no text is entered and hide-empty-cursor is set to true
-    if (!(tb->text[0] == '\0' && rofi_theme_get_boolean(WIDGET(tb), "hide-cursor-on-empty", FALSE) == TRUE)){
+    // hide the cursor, if no text is entered and hide-empty-cursor is set to
+    // true
+    if (!(tb->text[0] == '\0' &&
+          rofi_theme_get_boolean(WIDGET(tb), "hide-cursor-on-empty", FALSE) ==
+              TRUE)) {
       // Clamp the position, should not be needed, but we are paranoid.
       size_t cursor_offset;
 
@@ -782,7 +794,7 @@ void textbox_delete(textbox *tb, int pos, int dlen) {
   }
   pos = MAX(0, MIN(len, pos));
   if ((pos + dlen) > len) {
-    dlen = len - dlen;
+    dlen = len - pos;
   }
   // move everything after pos+dlen down
   char *start = g_utf8_offset_to_pointer(tb->text, pos);
@@ -822,6 +834,52 @@ static void textbox_cursor_bkspc(textbox *tb) {
     textbox_cursor_dec(tb);
     textbox_cursor_del(tb);
   }
+}
+
+/**
+ * @param tb Handle to the textbox
+ *
+ * Transpose the two characters before the cursor.
+ */
+static void textbox_transpose_chars(textbox *tb) {
+  // Need to have more then 2 characters in front of the cursor.
+  if (tb == NULL || tb->cursor < 2) {
+    return;
+  }
+  // Find pointer to cursor.
+  gchar *cursor_ptr = g_utf8_offset_to_pointer(tb->text, tb->cursor);
+  if (cursor_ptr == NULL) {
+    // We should never reach this.
+    g_warning("Invalid cursor index detected.");
+    return;
+  }
+  // Find previous character pointer. (1)
+  gchar *second_char_ptr = g_utf8_find_prev_char(tb->text, cursor_ptr);
+  if (second_char_ptr == NULL) {
+    // Failed to move cursor one back, so we cannot swap.
+    return;
+  }
+  // Find previous previous character pointer. (2)
+  gchar *first_char_ptr = g_utf8_find_prev_char(tb->text, second_char_ptr);
+  if (first_char_ptr == NULL) {
+    // Failed to move cursor back 2 characters, so we cannot swap.
+    return;
+  }
+  // Calculate size of each character
+  size_t first_char_l = second_char_ptr - first_char_ptr;
+  size_t second_char_l = cursor_ptr - second_char_ptr;
+  // Create a temp buffer so we can swap.
+  gchar temp[second_char_l + first_char_l];
+  // Copy char 2 into first place.
+  memcpy(temp, second_char_ptr, second_char_l);
+  // Copy char 1 into 2nd place.
+  memcpy(temp + second_char_l, first_char_ptr, first_char_l);
+  // Copy new order back into original string.
+  memcpy(first_char_ptr, temp, second_char_l + first_char_l);
+  // Set modified, lay out need te be redrawn
+  // Stop blink!
+  tb->blink = 2;
+  tb->changed = TRUE;
 }
 static void textbox_cursor_bkspc_word(textbox *tb) {
   if (tb && tb->cursor > 0) {
@@ -917,6 +975,9 @@ int textbox_keybinding(textbox *tb, KeyBindingAction action) {
   // BackSpace, Shift-BackSpace, Ctrl-h
   case REMOVE_CHAR_BACK:
     textbox_cursor_bkspc(tb);
+    return 1;
+  case TRANSPOSE_CHARS:
+    textbox_transpose_chars(tb);
     return 1;
   default:
     g_return_val_if_reached(0);
